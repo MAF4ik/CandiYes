@@ -1,0 +1,24 @@
+hr-assistant/
+├── .env
+├── requirements.txt
+├── app.py
+├── auth_sustem
+├── core/
+│   ├── __init__.py
+│   ├── assistant.py
+│   └── models.py
+├── services/
+│   ├── __init__.py
+│   ├── resume_parser.py
+│   ├── ai_analyzer.py
+│   └── interview_simulator.py
+├── utils/
+│    ├── __init__.py
+|    └── config.py
+├── auth/
+│   ├── __init__.py
+│   ├── database.py
+│   ├── models.py
+│   └── securiry.py
+└── data/
+    └── users.db

@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env/
+.venv/
+venv/
+ENV/
+.env.local
+.env.production
+*.log
+.DS_Store
+.coverage
+.pytest_cache/
+.mypy_cache/
