@@ -939,54 +939,60 @@ def show_interview_interface():
         resumes = get_user_resumes(st.session_state.user_id)
         st.success("✅ Тестовое резюме создано! Можете начинать собеседование.")
     
-    # Показываем все резюме пользователя
-    st.info("💡 Выберите резюме для собеседования:")
-    
-    # Создаем список доступных резюме
-    resume_options = {}
-    for resume in resumes:
-        resume_name = f"{resume[2]} - {resume[8] or 'Позиция не определена'}"
-        if resume[11]:  # is_analyzed
-            resume_name += " ✅"
-        else:
-            resume_name += " ⚠️ (не проверено)"
-        resume_options[resume_name] = resume
-    
-    selected_resume_key = st.selectbox("Выберите резюме:", list(resume_options.keys()))
-    selected_resume = resume_options[selected_resume_key]
-    
-    # Настройки собеседования
-    col1, col2 = st.columns(2)
-    with col1:
-        interview_type = st.selectbox("Тип собеседования:", 
-                                    ["Техническое", "Поведенческое", "Комплексное"])
-    with col2:
-        question_count = st.slider("Количество вопросов:", 3, 10, 5)
-    
-    position = selected_resume[8] or "Разработчик"
-    experience_level = selected_resume[9] or "Middle"
-    
-    st.markdown(f"""
-    **Настройки собеседования:**
-    - 🎯 **Позиция:** {position}
-    - 📊 **Уровень:** {experience_level}
-    - 🎪 **Тип:** {interview_type}
-    - ❓ **Вопросов:** {question_count}
-    """)
-    
-    if st.button("🎯 Начать собеседование", use_container_width=True, type="primary"):
-        st.session_state.interview_data = {
-            "resume_id": selected_resume[0],
-            "position": position,
-            "experience_level": experience_level,
-            "interview_type": interview_type,
-            "questions": interview_assistant.generate_questions(position, experience_level, question_count),
-            "current_question": 0,
-            "answers": [],
-            "start_time": time.time(),
-            "results": []
-        }
-        st.rerun()
+    if resumes:
+        # Показываем все резюме пользователя
+        st.info("💡 Выберите резюме для собеседования:")
+        
+        # Создаем список доступных резюме
+        resume_options = {}
+        for resume in resumes:
+            resume_name = f"{resume[2]} - {resume[8] or 'Позиция не определена'}"
+            if resume[11]:  # is_analyzed
+                resume_name += " ✅"
+            else:
+                resume_name += " ⚠️ (не проверено)"
+            resume_options[resume_name] = resume
+        
+        selected_resume_key = st.selectbox("Выберите резюме:", list(resume_options.keys()))
+        selected_resume = resume_options[selected_resume_key]
+        
+        # Настройки собеседования
+        col1, col2 = st.columns(2)
+        with col1:
+            interview_type = st.selectbox("Тип собеседования:", 
+                                        ["Техническое", "Поведенческое", "Комплексное"])
+        with col2:
+            question_count = st.slider("Количество вопросов:", 3, 10, 5)
+        
+        position = selected_resume[8] or "Разработчик"
+        experience_level = selected_resume[9] or "Middle"
+        
+        st.markdown(f"""
+        **Настройки собеседования:**
+        - 🎯 **Позиция:** {position}
+        - 📊 **Уровень:** {experience_level}
+        - 🎪 **Тип:** {interview_type}
+        - ❓ **Вопросов:** {question_count}
+        """)
+        
+        if st.button("🎯 Начать собеседование", use_container_width=True, type="primary"):
+            st.session_state.interview_data = {
+                "resume_id": selected_resume[0],
+                "position": position,
+                "experience_level": experience_level,
+                "interview_type": interview_type,
+                "questions": interview_assistant.generate_questions(position, experience_level, question_count),
+                "current_question": 0,
+                "answers": [],
+                "start_time": time.time(),
+                "results": []
+            }
+            st.session_state.interview_complete = False
+            st.rerun()
+        
+        # Показываем историю собеседований
+        show_interview_history()
+
     
     # Показываем историю собеседований
     show_interview_history()
@@ -1026,6 +1032,13 @@ def create_demo_resume():
 
 def conduct_interview():
     """Проведение активного собеседования"""
+    if not st.session_state.get('interview_data'):
+        st.error("❌ Данные собеседования не найдены")
+        if st.button("🔄 Вернуться к настройкам", use_container_width=True):
+            st.session_state.interview_data = None
+            st.rerun()
+        return
+    
     interview_data = st.session_state.interview_data
     
     st.markdown(f'<div class="sub-header">🎤 Собеседование на позицию: {interview_data["position"]}</div>', unsafe_allow_html=True)
@@ -1074,25 +1087,24 @@ def conduct_interview():
             st.session_state.interview_complete = True
             st.rerun()
 
+
 def show_interview_results():
     """Показ результатов завершенного собеседования"""
-    interview_data = st.session_state.interview_data
-    
-    # Проверяем что есть данные для отображения
-    if not interview_data or "results" not in interview_data:
-        st.error("❌ Нет данных для отображения результатов")
+    if not st.session_state.get('interview_data'):
+        st.error("❌ Нет данных собеседования")
         if st.button("🔄 Начать заново", use_container_width=True):
-            for key in ['interview_data', 'interview_complete']:
-                if key in st.session_state:
-                    del st.session_state[key]
+            st.session_state.interview_data = None
+            st.session_state.interview_complete = False
             st.rerun()
         return
+    
+    interview_data = st.session_state.interview_data
     
     # Рассчитываем длительность
     duration = int(time.time() - interview_data["start_time"])
     
     # Генерируем финальный фидбэк
-    final_feedback = interview_assistant.generate_final_feedback(interview_data["results"])
+    final_feedback = interview_assistant.generate_final_feedback(interview_data.get("results", []))
     
     st.markdown('<div class="sub-header">📊 Результаты собеседования</div>', unsafe_allow_html=True)
     
@@ -1122,7 +1134,7 @@ def show_interview_results():
     st.markdown("---")
     st.markdown("**📋 Детализация по вопросам:**")
     
-    for i, (question, result) in enumerate(zip(interview_data["questions"], interview_data["results"])):
+    for i, (question, result) in enumerate(zip(interview_data["questions"], interview_data.get("results", []))):
         with st.expander(f"Вопрос {i+1}: {question[:50]}... (Оценка: {result['score']}/10)"):
             col_q1, col_q2 = st.columns([2, 1])
             
@@ -1165,10 +1177,105 @@ def show_interview_results():
     
     # Кнопка нового собеседования
     if st.button("🔄 Пройти новое собеседование", use_container_width=True):
-        for key in ['interview_data', 'interview_complete']:
-            if key in st.session_state:
-                del st.session_state[key]
+        st.session_state.interview_data = None
+        st.session_state.interview_complete = False
         st.rerun()
+
+def show_profile_interface():
+    """Интерфейс профиля пользователя"""
+    st.markdown('<div class="sub-header">👤 Профиль пользователя</div>', unsafe_allow_html=True)
+    
+    with st.form("profile_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            email = st.text_input("Email", value=st.session_state.get('email', ''))
+            username = st.text_input("Логин", value=st.session_state.get('username', ''))
+            full_name = st.text_input("ФИО", value=st.session_state.get('full_name', ''))
+        
+        with col2:
+            if st.session_state.user_type == "hr":
+                company = st.text_input("Компания", value=st.session_state.get('company', ''))
+                position = st.text_input("Должность", value=st.session_state.get('position', ''))
+                phone = ""
+                location = ""
+            else:
+                company = ""
+                position = ""
+                phone = st.text_input("Телефон", value=st.session_state.get('phone', ''))
+                location = st.text_input("Город", value=st.session_state.get('location', ''))
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            save_profile = st.form_submit_button("💾 Сохранить профиль", use_container_width=True)
+        with col_btn2:
+            cancel_profile = st.form_submit_button("❌ Отмена", use_container_width=True)
+        
+        if save_profile:
+            update_data = {
+                'email': email,
+                'username': username,
+                'full_name': full_name,
+                'company': company,
+                'position': position,
+                'phone': phone,
+                'location': location
+            }
+            
+            if auth_system.update_user_profile(st.session_state.user_id, update_data):
+                # Обновляем session_state
+                st.session_state.email = email
+                st.session_state.username = username
+                st.session_state.full_name = full_name
+                st.session_state.company = company
+                st.session_state.position = position
+                st.session_state.phone = phone
+                st.session_state.location = location
+                
+                st.success("✅ Профиль успешно обновлен!")
+                st.session_state.show_profile = False
+                st.rerun()
+            else:
+                st.error("❌ Ошибка при обновлении профиля")
+        
+        if cancel_profile:
+            st.session_state.show_profile = False
+            st.rerun()
+
+
+def show_change_password_interface():
+    """Интерфейс смены пароля"""
+    st.markdown('<div class="sub-header">🔐 Смена пароля</div>', unsafe_allow_html=True)
+    
+    with st.form("password_form"):
+        current_password = st.text_input("Текущий пароль", type="password")
+        new_password = st.text_input("Новый пароль", type="password")
+        confirm_password = st.text_input("Подтвердите новый пароль", type="password")
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            change_pass = st.form_submit_button("🔑 Сменить пароль", use_container_width=True)
+        with col_btn2:
+            cancel_pass = st.form_submit_button("❌ Отмена", use_container_width=True)
+        
+        if change_pass:
+            if not current_password or not new_password or not confirm_password:
+                st.error("⚠️ Заполните все поля")
+            elif new_password != confirm_password:
+                st.error("❌ Новые пароли не совпадают")
+            elif len(new_password) < 6:
+                st.error("❌ Пароль должен содержать минимум 6 символов")
+            else:
+                if auth_system.change_password(st.session_state.user_id, current_password, new_password):
+                    st.success("✅ Пароль успешно изменен!")
+                    st.session_state.change_password = False
+                    st.rerun()
+                else:
+                    st.error("❌ Неверный текущий пароль")
+        
+        if cancel_pass:
+            st.session_state.change_password = False
+            st.rerun()
 
 def show_interview_history():
     """Показ истории собеседований"""
@@ -1859,8 +1966,12 @@ def init_session():
         st.session_state.username = ""
     if 'full_name' not in st.session_state:
         st.session_state.full_name = ""
+    if 'email' not in st.session_state:
+        st.session_state.email = ""
     if 'company' not in st.session_state:
         st.session_state.company = ""
+    if 'position' not in st.session_state:
+        st.session_state.position = ""
     if 'phone' not in st.session_state:
         st.session_state.phone = ""
     if 'location' not in st.session_state:
@@ -2067,11 +2178,15 @@ def show_login_page():
                     st.session_state.logged_in = True
                     st.session_state.user_id = user['id']
                     st.session_state.username = user['username']
+                    st.session_state.email = user['email']
                     st.session_state.user_type = user['user_type']
                     st.session_state.full_name = user['full_name']
                     st.session_state.company = user.get('company', '')
+                    st.session_state.position = user.get('position', '')
                     st.session_state.phone = user.get('phone', '')
                     st.session_state.location = user.get('location', '')
+                    st.session_state.show_profile = False
+                    st.session_state.change_password = False
                     
                     st.success(f"Добро пожаловать, {user['full_name']}!")
                     st.rerun()
@@ -2143,16 +2258,24 @@ def show_candidate_interface():
     st.markdown('<div class="main-header">💼 КандиДА</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center; color: #6C757D; font-size: 1.2rem; margin-bottom: 3rem;">Ваш персональный помощник в карьерном росте</div>', unsafe_allow_html=True)
     
+    # Инициализация состояний если их нет
+    if 'interview_complete' not in st.session_state:
+        st.session_state.interview_complete = False
+    if 'interview_data' not in st.session_state:
+        st.session_state.interview_data = None
+    if 'selected_interview' not in st.session_state:
+        st.session_state.selected_interview = None
+    
     tab1, tab2, tab3, tab4 = st.tabs(["🎤 Собеседование", "🔍 Проверка резюме", "📊 Моя статистика", "📁 Мои резюме"])
     
     with tab1:
-        # Проверяем состояние собеседования
-        if st.session_state.get('interview_complete'):
+        # Проверяем состояние собеседования в правильном порядке
+        if st.session_state.get('selected_interview'):
+            show_interview_details(st.session_state.selected_interview)
+        elif st.session_state.get('interview_complete'):
             show_interview_results()
         elif st.session_state.get('interview_data'):
             conduct_interview()
-        elif st.session_state.get('selected_interview'):
-            show_interview_details(st.session_state.selected_interview)
         else:
             show_interview_interface()
     
@@ -2164,6 +2287,7 @@ def show_candidate_interface():
     
     with tab4:
         show_my_resumes()
+
 
 def show_resume_analysis_section():
     """Раздел анализа резюме"""
@@ -2334,10 +2458,12 @@ def show_main_interface():
         
         if st.button("👤 Профиль", use_container_width=True):
             st.session_state.show_profile = True
+            st.session_state.change_password = False
             st.rerun()
         
         if st.button("🔐 Сменить пароль", use_container_width=True):
             st.session_state.change_password = True
+            st.session_state.show_profile = False
             st.rerun()
         
         if st.session_state.user_type == "hr":
@@ -2364,6 +2490,8 @@ def show_main_interface():
                     type="primary" if is_active else "secondary"
                 ):
                     st.session_state.hr_section = section_key
+                    st.session_state.show_profile = False
+                    st.session_state.change_password = False
                     st.rerun()
         
         st.markdown("---")
@@ -2372,8 +2500,12 @@ def show_main_interface():
                 del st.session_state[key]
             st.rerun()
 
-    # Основной контент
-    if st.session_state.user_type == "candidate":
+    # Основной контент - проверяем состояния профиля и смены пароля
+    if st.session_state.get('show_profile'):
+        show_profile_interface()
+    elif st.session_state.get('change_password'):
+        show_change_password_interface()
+    elif st.session_state.user_type == "candidate":
         show_candidate_interface()
     else:
         show_hr_interface()
