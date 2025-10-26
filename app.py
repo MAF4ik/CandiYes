@@ -1473,13 +1473,17 @@ def show_favorites_section():
         st.info("ℹ️ У вас пока нет избранных кандидатов")
         return
     
-    # Статистика избранных
+    # Статистика избранных - ИСПРАВЛЕННАЯ СТРОКА
     col_stats1, col_stats2, col_stats3 = st.columns(3)
     with col_stats1:
         st.metric("Всего в избранном", len(favorites))
     with col_stats2:
-        avg_score = sum(f[9] or 0 for f in favorites) / len(favorites) if favorites else 0
-        st.metric("Средняя оценка", f"{avg_score:.1f}%")
+        # ИСПРАВЛЕННАЯ СТРОКА - правильная обработка разных типов данных
+        try:
+            avg_score = sum(float(f[9]) if f[9] is not None and str(f[9]).replace('.', '').replace(',', '').isdigit() else 0 for f in favorites) / len(favorites) if favorites else 0
+            st.metric("Средняя оценка", f"{avg_score:.1f}%")
+        except (ValueError, TypeError):
+            st.metric("Средняя оценка", "N/A")
     with col_stats3:
         unique_positions = len(set(f[6] for f in favorites if f[6]))
         st.metric("Уникальные позиции", unique_positions)
@@ -1501,11 +1505,17 @@ def show_favorites_section():
                     st.markdown(f"**📝 Заметки:** {fav[3]}")
             
             with col2:
-                if fav[9]:  # authenticity_score
-                    score = fav[9]
-                    st.markdown(f"**🎯 Оценка:** {score}%")
-                    st.progress(score / 100)
+                if fav[9] is not None:  # authenticity_score - проверка на None
+                    try:
+                        score = float(fav[9]) if str(fav[9]).replace('.', '').replace(',', '').isdigit() else 0
+                        st.markdown(f"**🎯 Оценка:** {score}%")
+                        st.progress(score / 100)
+                    except (ValueError, TypeError):
+                        st.markdown(f"**🎯 Оценка:** {fav[9]}")
+                        st.progress(0)
                     st.markdown(f"**✅ Вердикт:** {fav[10] or 'Не определен'}")
+                else:
+                    st.markdown("**🎯 Оценка:** Не анализировано")
                 st.markdown(f"**⭐ Добавлено:** {fav[8] or 'Неизвестно'}")
             
             with col3:
